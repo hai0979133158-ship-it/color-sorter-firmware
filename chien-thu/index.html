@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Chiến Thú Offline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Be+Vietnam+Pro:wght@400;600;700&display=swap">
+<style>
+/* Layout: a single-screen arcade shell — resource bar, one active panel, bottom tab bar; battle takes over as a full-screen arena. Deliberately dark-only. */
+:root{
+  --bg:#13101c; --panel:#1e1a2c; --panel2:#2a2440; --line:#3a3356;
+  --ink:#f3eeff; --muted:#a39bc2; --gold:#ffc94a; --gem:#7ee0ff; --bad:#ff5d73; --good:#5fe39a;
+  --display:"Baloo 2","Trebuchet MS",system-ui,sans-serif;
+  --body:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;margin:0;
+  background-image:radial-gradient(ellipse at 50% -10%,#2b2050 0,transparent 60%);}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.app{max-width:760px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;padding-inline:16px;padding-block:12px 88px}
+h1,h2,h3{font-family:var(--display);margin:0;line-height:1.1;text-wrap:balance}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between}
+.logo{font-size:26px;font-weight:800;letter-spacing:.5px}
+.logo small{display:block;font-family:var(--body);font-size:11px;font-weight:600;color:var(--muted);letter-spacing:2px;text-transform:uppercase}
+.res{display:flex;gap:8px}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-weight:700;font-variant-numeric:tabular-nums;display:flex;gap:6px;align-items:center}
+.chip i{font-style:normal;width:10px;height:10px;border-radius:50%;display:inline-block}
+.chip.g i{background:var(--gold)} .chip.d i{background:var(--gem);border-radius:2px;transform:rotate(45deg)}
+.panel{margin-top:16px;display:flex;flex-direction:column;gap:14px}
+.sub{color:var(--muted);font-size:13px}
+.tabs{position:fixed;left:0;right:0;bottom:0;background:#0f0c18ee;border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom,0px);z-index:5;backdrop-filter:blur(6px)}
+.tabs button{flex:1;max-width:190px;padding:12px 4px;font-weight:700;color:var(--muted);font-size:13px;border-top:3px solid transparent}
+.tabs button.on{color:var(--ink);border-top-color:var(--gold)}
+.btn{background:var(--gold);color:#2a1d00;font-weight:800;border-radius:12px;padding:10px 16px;font-family:var(--display);font-size:16px;box-shadow:0 3px 0 #b8861d}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 #b8861d}
+.btn.ghost{background:var(--panel2);color:var(--ink);box-shadow:0 3px 0 #120f1d}
+.btn.red{background:var(--bad);color:#fff;box-shadow:0 3px 0 #9b2738}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* stage map */
+.hero{background:linear-gradient(135deg,#2c2150,#1b1630);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.hero .num{font-family:var(--display);font-size:46px;font-weight:800;line-height:1}
+.hero .num span{font-size:16px;color:var(--muted);font-weight:600}
+.foes{display:flex;gap:8px;flex-wrap:wrap}
+.mini{display:flex;align-items:center;gap:6px;background:#0007;border-radius:10px;padding:4px 8px 4px 4px;font-size:12px}
+.mini .ava{width:30px;height:30px;font-size:18px}
+.path{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:8px}
+.node{aspect-ratio:1;max-width:100%;border-radius:12px;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center;font-weight:800;font-variant-numeric:tabular-nums;color:var(--muted)}
+.node.done{background:#203a2e;border-color:#2f6b4c;color:var(--good)}
+.node.cur{background:var(--gold);color:#2a1d00;border-color:var(--gold)}
+.node.boss{border-width:2px;border-color:var(--bad)}
+
+/* beast avatar + cards */
+.ava{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font-size:32px;flex:none;position:relative;
+  background:radial-gradient(circle at 35% 30%,#fff3,transparent 55%),var(--ec,#555);box-shadow:inset 0 -4px 0 #0004}
+.stars{color:var(--gold);font-size:11px;letter-spacing:1px}
+.rar{font-size:10px;font-weight:800;padding:1px 6px;border-radius:6px;background:var(--rc);color:#120f1d}
+.eltag{font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;border:1px solid var(--ec);color:var(--ec)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;gap:10px;align-items:center;text-align:left;position:relative;min-width:0}
+.card .meta{min-width:0;display:flex;flex-direction:column;gap:3px}
+.card .nm{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card.sel{outline:2px solid var(--gold)}
+.card .inteam{position:absolute;top:6px;right:8px;font-size:10px;font-weight:800;color:var(--gold)}
+.slots{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.slot{border:2px dashed var(--line);border-radius:14px;min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px;color:var(--muted);font-size:12px;text-align:center}
+.slot.full{border-style:solid;border-color:#4a4170;background:var(--panel);color:var(--ink)}
+.detail{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.stat{background:var(--panel2);border-radius:10px;padding:8px;text-align:center}
+.stat b{display:block;font-family:var(--display);font-size:18px;font-variant-numeric:tabular-nums}
+.stat span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.skill{background:#0005;border-radius:10px;padding:10px}
+.skill b{color:var(--gold)}
+.wheel{font-size:12px;color:var(--muted)}
+
+/* gacha */
+.altar{background:radial-gradient(circle at 50% 40%,#4b2f86,#1b1630 70%);border:1px solid var(--line);border-radius:18px;padding:22px 16px;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center}
+.rates{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.pulls{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.pull{background:var(--panel);border:2px solid var(--rc);border-radius:12px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;text-align:center;animation:pop .45s both}
+.pull .ava{width:44px;height:44px;font-size:26px}
+.pull .tag{font-weight:800;color:var(--good)}
+@keyframes pop{from{transform:scale(.3) rotateY(90deg);opacity:0}to{transform:none;opacity:1}}
+
+/* mod menu */
+.mod{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.mod .t{font-weight:700} .mod .sub{font-size:12px}
+.sw{width:48px;height:28px;border-radius:999px;background:var(--panel2);position:relative;flex:none;border:1px solid var(--line)}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--muted);transition:left .15s}
+.sw.on{background:#3a8f63} .sw.on::after{left:23px;background:#fff}
+.seg{display:flex;background:var(--panel2);border-radius:10px;padding:3px;flex:none}
+.seg button{padding:5px 9px;border-radius:8px;font-weight:700;font-size:12px;color:var(--muted)}
+.seg button.on{background:var(--gold);color:#2a1d00}
+input[type=number]{width:80px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:6px 8px;font:inherit}
+.modbadge{font-size:10px;font-weight:800;background:var(--bad);color:#fff;border-radius:6px;padding:2px 6px;letter-spacing:1px}
+
+/* battle */
+.arena{position:fixed;inset:0;z-index:10;background:radial-gradient(ellipse at 50% 50%,#2a1f45,#0c0914 75%);display:flex;flex-direction:column;
+  padding:calc(10px + env(safe-area-inset-top,0px)) 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.arena .bar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.arena .bar h3{font-size:18px}
+.side{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:560px;width:100%;margin:0 auto}
+.unit{background:#0008;border:1px solid var(--line);border-radius:14px;padding:8px;display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;transition:transform .15s,opacity .3s;min-width:0}
+.unit .nm{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.unit .ava{width:60px;height:60px;font-size:36px}
+.unit.boss .ava{width:74px;height:74px;font-size:46px;box-shadow:0 0 0 3px var(--bad),inset 0 -4px 0 #0004}
+.hp,.en{width:100%;height:8px;background:#0009;border-radius:6px;overflow:hidden}
+.hp i,.en i{display:block;height:100%;transition:width .25s}
+.hp i{background:var(--good)} .hp.low i{background:var(--bad)}
+.en{height:5px} .en i{background:var(--gem)}
+.unit .hpn{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+.unit.dead{opacity:.25;filter:grayscale(1)}
+.unit.ready{border-color:var(--gem);box-shadow:0 0 14px #7ee0ff88;cursor:pointer}
+.unit.ready::before{content:"CHIÊU";position:absolute;top:-9px;font-size:10px;font-weight:800;background:var(--gem);color:#06222c;border-radius:6px;padding:1px 6px}
+.unit.act{transform:scale(1.08)}
+.unit.hit{animation:shake .3s}
+.unit .fx{position:absolute;top:0;right:4px;display:flex;gap:2px;font-size:9px;font-weight:800}
+.unit .fx span{background:#000a;border-radius:4px;padding:0 3px}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.float{position:absolute;left:50%;top:30%;transform:translateX(-50%);font-family:var(--display);font-weight:800;font-size:20px;pointer-events:none;animation:up .9s forwards;text-shadow:0 2px 0 #000;white-space:nowrap;z-index:2}
+.float.crit{font-size:26px;color:var(--gold)} .float.heal{color:var(--good)} .float.dmg{color:#fff} .float.weak{color:#ffb37a}
+@keyframes up{to{transform:translate(-50%,-48px);opacity:0}}
+.mid{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;min-height:80px}
+.log{font-size:13px;color:var(--muted);text-align:center;min-height:2.6em;max-width:520px}
+.log b{color:var(--ink)}
+.vs{font-family:var(--display);font-size:13px;color:var(--muted);letter-spacing:3px}
+.ctrl{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.result{position:absolute;inset:0;background:#000b;display:grid;place-items:center;padding:16px}
+.result .box{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px;text-align:center;display:flex;flex-direction:column;gap:12px;max-width:340px;width:100%}
+.result h2{font-size:40px}
+.confirm{background:#3a1622;border:1px solid var(--bad);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+@media (max-width:420px){.pulls{grid-template-columns:repeat(4,1fr)}.stats{grid-template-columns:repeat(2,1fr)}.unit .ava{width:50px;height:50px;font-size:30px}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="logo">Chiến Thú Hỗn Chiến<small>Bản offline · có mod</small></div>
+    <div class="res">
+      <div class="chip g"><i></i><span id="gold">0</span></div>
+      <div class="chip d"><i></i><span id="gems">0</span></div>
+    </div>
+  </header>
+  <main class="panel" id="view"></main>
+</div>
+<nav class="tabs" id="tabs">
+  <button data-t="stage" class="on">Phiêu lưu</button>
+  <button data-t="team">Đội hình</button>
+  <button data-t="gacha">Triệu hồi</button>
+  <button data-t="mod">Menu Mod</button>
+</nav>
+<div id="arenaRoot"></div>
+
+<script>
+(()=>{
+// ---------- data ----------
+const EL={hoa:{n:'Hỏa',c:'#ff7a45',beats:'moc'},thuy:{n:'Thủy',c:'#4aa8ff',beats:'hoa'},moc:{n:'Mộc',c:'#46c97e',beats:'tho'},tho:{n:'Thổ',c:'#c99055',beats:'loi'},loi:{n:'Lôi',c:'#e8c93a',beats:'thuy'}};
+const RAR=[null,{n:'N',c:'#9aa0ad',m:1},{n:'R',c:'#5aa9ff',m:1.25},{n:'SR',c:'#b77bff',m:1.55},{n:'SSR',c:'#ffc94a',m:1.95}];
+const ROLE={tank:{hp:1400,atk:78,def:75,spd:88},dps:{hp:900,atk:132,def:38,spd:112},sup:{hp:1050,atk:92,def:52,spd:100}};
+const B=[
+ {id:'keluu',n:'Kê Lửa',e:'🐓',el:'hoa',r:1,role:'dps',sk:{n:'Mổ Lửa',t:'single',m:1.9,burn:2,d:'Gây 190% sát thương lên 1 địch, thiêu đốt 2 lượt.'}},
+ {id:'hoaho',n:'Hỏa Hồ',e:'🦊',el:'hoa',r:2,role:'dps',sk:{n:'Cửu Vĩ Hỏa',t:'single',m:2.4,burn:2,d:'Gây 240% sát thương lên 1 địch, thiêu đốt 2 lượt.'}},
+ {id:'phuong',n:'Hỏa Phượng',e:'🦚',el:'hoa',r:3,role:'sup',sk:{n:'Niết Bàn',t:'healAll',m:.22,atkUp:2,d:'Hồi 22% máu toàn đội, tăng 40% công 2 lượt.'}},
+ {id:'viemlong',n:'Viêm Long',e:'🐉',el:'hoa',r:4,role:'dps',sk:{n:'Long Viêm Bạo',t:'aoe',m:1.7,burn:3,d:'Gây 170% sát thương toàn bộ địch, thiêu đốt 3 lượt.'}},
+ {id:'thuyquy',n:'Thủy Quy',e:'🐢',el:'thuy',r:2,role:'tank',sk:{n:'Mai Băng',t:'shield',m:.1,d:'Tăng 60% thủ toàn đội 2 lượt, hồi 10% máu.'}},
+ {id:'camap',n:'Cá Mập Xanh',e:'🦈',el:'thuy',r:3,role:'dps',sk:{n:'Hàm Thép',t:'single',m:2.8,d:'Gây 280% sát thương lên địch yếu máu nhất.',low:1}},
+ {id:'bachtuoc',n:'Bạch Tuộc',e:'🐙',el:'thuy',r:1,role:'sup',sk:{n:'Phun Mực',t:'aoe',m:1.0,stun:.25,d:'Gây 100% sát thương toàn bộ địch, 25% gây choáng.'}},
+ {id:'haima',n:'Hải Vương Kình',e:'🐳',el:'thuy',r:4,role:'tank',sk:{n:'Đại Hồng Thủy',t:'aoe',m:1.4,heal:.15,d:'Gây 140% sát thương toàn bộ địch, hồi 15% máu toàn đội.'}},
+ {id:'hungmoc',n:'Hùng Mộc',e:'🐻',el:'moc',r:1,role:'tank',sk:{n:'Vả Gấu',t:'single',m:1.8,stun:.4,d:'Gây 180% sát thương, 40% gây choáng.'}},
+ {id:'mocloc',n:'Mộc Lộc',e:'🦌',el:'moc',r:2,role:'sup',sk:{n:'Xuân Sinh',t:'healAll',m:.25,d:'Hồi 25% máu toàn đội.'}},
+ {id:'tinhlinh',n:'Tinh Linh Rừng',e:'🦋',el:'moc',r:3,role:'sup',sk:{n:'Phấn Hoa',t:'aoe',m:1.2,poison:3,d:'Gây 120% sát thương toàn bộ địch, trúng độc 3 lượt.'}},
+ {id:'thanthu',n:'Thần Mộc Viên',e:'🦍',el:'moc',r:4,role:'tank',sk:{n:'Cổ Thụ Giáng',t:'aoe',m:1.5,stun:.35,d:'Gây 150% sát thương toàn bộ địch, 35% gây choáng.'}},
+ {id:'chuotdien',n:'Chuột Điện',e:'🐭',el:'loi',r:1,role:'dps',sk:{n:'Tia Chớp',t:'single',m:2.0,stun:.3,d:'Gây 200% sát thương, 30% gây choáng.'}},
+ {id:'loiung',n:'Lôi Ưng',e:'🦅',el:'loi',r:2,role:'dps',sk:{n:'Sấm Rền',t:'aoe',m:1.2,stun:.2,d:'Gây 120% sát thương toàn bộ địch, 20% gây choáng.'}},
+ {id:'loisoi',n:'Lôi Lang',e:'🐺',el:'loi',r:3,role:'dps',sk:{n:'Lôi Nha',t:'single',m:2.6,stun:.5,d:'Gây 260% sát thương, 50% gây choáng.'}},
+ {id:'loiho',n:'Lôi Hổ',e:'🐯',el:'loi',r:4,role:'dps',sk:{n:'Thiên Lôi Trảm',t:'single',m:3.4,stun:1,d:'Gây 340% sát thương, chắc chắn gây choáng.'}},
+ {id:'cutuong',n:'Cự Tượng',e:'🐘',el:'tho',r:1,role:'tank',sk:{n:'Giẫm Đất',t:'aoe',m:.9,d:'Gây 90% sát thương toàn bộ địch.'}},
+ {id:'thachte',n:'Thạch Tê',e:'🦏',el:'tho',r:2,role:'tank',sk:{n:'Húc Đá',t:'single',m:2.1,d:'Gây 210% sát thương, tự tăng 60% thủ 2 lượt.',selfDef:2}},
+ {id:'diaxa',n:'Địa Xà',e:'🐍',el:'tho',r:3,role:'dps',sk:{n:'Nọc Cát',t:'aoe',m:1.3,poison:3,d:'Gây 130% sát thương toàn bộ địch, trúng độc 3 lượt.'}},
+ {id:'kylan',n:'Kỳ Lân Thổ',e:'🦄',el:'tho',r:4,role:'sup',sk:{n:'Địa Mạch',t:'aoe',m:1.5,atkUp:2,d:'Gây 150% sát thương toàn bộ địch, tăng 40% công toàn đội 2 lượt.'}},
+];
+const BY=Object.fromEntries(B.map(b=>[b.id,b]));
+const MAXLV=80;
+const elemMult=(a,d)=>EL[a].beats===d?1.5:EL[d].beats===a?0.75:1;
+function stats(b,lvl,stars){
+  const k=RAR[b.r].m*(1+0.12*(lvl-1))*(1+0.15*(stars-1)), R=ROLE[b.role];
+  return {hp:Math.round(R.hp*k),atk:Math.round(R.atk*k),def:Math.round(R.def*k),spd:Math.round(R.spd+lvl*.4+b.r*3)};
+}
+const lvCost=l=>Math.round(30*Math.pow(l,1.6));
+
+// ---------- state ----------
+const KEY='chienthu_offline_v1';
+const fresh=()=>({gold:600,gems:1500,stage:1,owned:{hoaho:{lvl:1,stars:1},thuyquy:{lvl:1,stars:1},mocloc:{lvl:1,stars:1}},team:['hoaho','thuyquy','mocloc'],
+  mods:{dmg:1,god:false,fullEn:false,goldMul:1,infGems:false,ssr:false,freeLv:false,speed:1,auto:true},tab:'stage',sel:'hoaho'});
+let S=fresh();
+function load(d){ try{ const raw=d&&d.state?d.state:JSON.parse(localStorage.getItem(KEY)||'null'); if(raw&&raw.owned){S=Object.assign(fresh(),raw);S.mods=Object.assign(fresh().mods,raw.mods||{});} }catch(e){} }
+function save(){ try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} }
+window.claude?.hot?.snapshot?.(()=>({state:S}));
+
+// ---------- helpers ----------
+const $=s=>document.querySelector(s);
+const fmt=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':String(Math.floor(n));
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ava=(b,cls='')=>`<div class="ava ${cls}" style="--ec:${EL[b.el].c}">${b.e}</div>`;
+const starStr=n=>'★'.repeat(n)+'☆'.repeat(5-n);
+const rarTag=b=>`<span class="rar" style="--rc:${RAR[b.r].c}">${RAR[b.r].n}</span>`;
+const elTag=el=>`<span class="eltag" style="--ec:${EL[el].c}">${EL[el].n}</span>`;
+function rng(seed){return ()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+function refreshRes(){ $('#gold').textContent=fmt(S.gold); $('#gems').textContent=S.mods.infGems?'∞':fmt(S.gems); }
+
+// ---------- stages ----------
+function stageFoes(s){
+  const r=rng(s*7919), lvl=Math.max(1,Math.round(s*1.25)), stars=Math.min(5,1+Math.floor(s/12));
+  const maxR=s<4?2:s<12?3:4, pool=B.filter(b=>b.r<=maxR), boss=s%5===0;
+  return [0,1,2].map(i=>{const b=pool[Math.floor(r()*pool.length)];return {id:b.id,lvl:lvl+(boss&&i===1?3:0),stars,boss:boss&&i===1};});
+}
+const stageReward=s=>({gold:60+s*22,gems:s%5===0?120:30});
+
+// ---------- views ----------
+function render(){ refreshRes(); document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===S.tab)); ({stage:vStage,team:vTeam,gacha:vGacha,mod:vMod})[S.tab](); }
+
+function vStage(){
+  const s=S.stage, foes=stageFoes(s), rw=stageReward(s), boss=s%5===0;
+  const start=Math.max(1,s-9), nodes=[];
+  for(let i=start;i<start+20;i++) nodes.push(`<div class="node ${i<s?'done':i===s?'cur':''} ${i%5===0?'boss':''}">${i}</div>`);
+  const anyMod=S.mods.dmg>1||S.mods.god||S.mods.fullEn;
+  $('#view').innerHTML=`
+  <section class="hero">
+    <div class="row" style="justify-content:space-between">
+      <div class="num">Ải ${s} <span>${boss?'· Trùm chương '+(s/5):'· Chương '+Math.ceil(s/5)}</span></div>
+      ${anyMod?'<span class="modbadge">MOD ĐANG BẬT</span>':''}
+    </div>
+    <div class="foes">${foes.map(f=>{const b=BY[f.id];return `<div class="mini">${ava(b)}<div><b>${f.boss?'Trùm ':''}${b.n}</b><br><span class="sub">Lv ${f.lvl} · ${EL[b.el].n}</span></div></div>`}).join('')}</div>
+    <div class="sub">Thưởng: ${rw.gold*S.mods.goldMul} vàng · ${rw.gems} kim cương</div>
+    <div class="row"><button class="btn" id="fight">Xuất chiến</button><span class="sub">Đội: ${S.team.map(id=>BY[id].n).join(', ')||'chưa có'}</span></div>
+  </section>
+  <div class="wheel">Khắc chế (sát thương ×1.5): Hỏa → Mộc → Thổ → Lôi → Thủy → Hỏa</div>
+  <div class="path">${nodes.join('')}</div>`;
+  $('#fight').onclick=()=>{ if(!S.team.length){S.tab='team';render();return;} startBattle(s); };
+}
+
+function vTeam(){
+  const ids=Object.keys(S.owned).sort((a,b)=>BY[b].r-BY[a].r||S.owned[b].lvl-S.owned[a].lvl);
+  if(!S.owned[S.sel]) S.sel=ids[0];
+  const b=BY[S.sel], o=S.owned[S.sel], st=stats(b,o.lvl,o.stars), inT=S.team.includes(b.id);
+  const cost=S.mods.freeLv?0:lvCost(o.lvl);
+  const cost10=(()=>{let c=0;for(let l=o.lvl;l<Math.min(MAXLV,o.lvl+10);l++)c+=lvCost(l);return S.mods.freeLv?0:c;})();
+  $('#view').innerHTML=`
+  <h2>Đội hình xuất chiến</h2>
+  <div class="slots">${[0,1,2].map(i=>{const id=S.team[i];if(!id)return `<div class="slot">Ô trống<br>Chọn thú bên dưới</div>`;const x=BY[id],y=S.owned[id];return `<div class="slot full">${ava(x)}<b>${x.n}</b><span class="sub">Lv ${y.lvl}</span></div>`}).join('')}</div>
+  <section class="detail">
+    <div class="row">${ava(b)}<div style="min-width:0"><h3>${b.n}</h3><div class="row" style="gap:6px">${rarTag(b)}${elTag(b.el)}<span class="stars">${starStr(o.stars)}</span><span class="sub">Lv ${o.lvl}/${MAXLV}</span></div></div></div>
+    <div class="stats"><div class="stat"><b>${fmt(st.hp)}</b><span>Máu</span></div><div class="stat"><b>${fmt(st.atk)}</b><span>Công</span></div><div class="stat"><b>${fmt(st.def)}</b><span>Thủ</span></div><div class="stat"><b>${st.spd}</b><span>Tốc</span></div></div>
+    <div class="skill"><b>${b.sk.n}</b> — ${b.sk.d}</div>
+    <div class="row">
+      <button class="btn" id="lv1" ${o.lvl>=MAXLV||S.gold<cost?'disabled':''}>Lên cấp · ${fmt(cost)} vàng</button>
+      <button class="btn ghost" id="lv10" ${o.lvl>=MAXLV||S.gold<cost10?'disabled':''}>+10 cấp · ${fmt(cost10)}</button>
+      <button class="btn ${inT?'red':'ghost'}" id="tog" ${!inT&&S.team.length>=3?'disabled':''}>${inT?'Rút khỏi đội':'Thêm vào đội'}</button>
+    </div>
+  </section>
+  <h3>Kho thú (${ids.length}/${B.length})</h3>
+  <div class="grid">${ids.map(id=>{const x=BY[id],y=S.owned[id];return `<button class="card ${id===S.sel?'sel':''}" data-id="${id}">${S.team.includes(id)?'<span class="inteam">TRONG ĐỘI</span>':''}${ava(x)}<div class="meta"><span class="nm">${x.n}</span><span class="row" style="gap:4px">${rarTag(x)}${elTag(x.el)}</span><span class="sub">Lv ${y.lvl} <span class="stars">${'★'.repeat(y.stars)}</span></span></div></button>`}).join('')}</div>`;
+  document.querySelectorAll('.card').forEach(c=>c.onclick=()=>{S.sel=c.dataset.id;save();vTeam();});
+  const up=n=>{for(let i=0;i<n&&o.lvl<MAXLV;i++){const c=S.mods.freeLv?0:lvCost(o.lvl);if(S.gold<c)break;S.gold-=c;o.lvl++;}save();render();};
+  $('#lv1').onclick=()=>up(1); $('#lv10').onclick=()=>up(10);
+  $('#tog').onclick=()=>{ if(inT)S.team=S.team.filter(x=>x!==b.id); else if(S.team.length<3)S.team.push(b.id); save();render(); };
+}
+
+let lastPulls=[];
+function vGacha(){
+  const rates=S.mods.ssr?[0,35,25,15,25]:[0,50,32,14,4];
+  const canPay=n=>S.mods.infGems||S.gems>=n;
+  $('#view').innerHTML=`
+  <section class="altar">
+    <h2>Tế Đàn Triệu Hồi</h2>
+    <div class="rates">${[1,2,3,4].map(r=>`<span class="rar" style="--rc:${RAR[r].c}">${RAR[r].n} ${rates[r]}%</span>`).join('')}</div>
+    <div class="sub">Trùng thú sẽ tăng 1 sao (tối đa 5). Đủ 5 sao thì đổi thành 500 vàng.</div>
+    <div class="row" style="justify-content:center">
+      <button class="btn ghost" id="p1" ${canPay(100)?'':'disabled'}>Triệu hồi ×1 · 100</button>
+      <button class="btn" id="p10" ${canPay(900)?'':'disabled'}>Triệu hồi ×10 · 900</button>
+    </div>
+  </section>
+  ${lastPulls.length?`<div class="pulls">${lastPulls.map((p,i)=>{const b=BY[p.id];return `<div class="pull" style="--rc:${RAR[b.r].c};animation-delay:${i*70}ms">${ava(b)}<b>${b.n}</b>${rarTag(b)}<span class="tag">${p.tag}</span></div>`}).join('')}</div>`:'<p class="sub">Kết quả triệu hồi sẽ hiện ở đây.</p>'}`;
+  const pull=n=>{
+    const price=n===10?900:100; if(!canPay(price))return; if(!S.mods.infGems)S.gems-=price;
+    lastPulls=[];
+    for(let i=0;i<n;i++){
+      let x=Math.random()*100,r=1; for(let k=4;k>=1;k--){const below=rates.slice(1,k).reduce((a,c)=>a+c,0); if(x>=below){r=k;break;}}
+      const pool=B.filter(b=>b.r===r), b=pool[Math.floor(Math.random()*pool.length)];
+      let tag;
+      if(!S.owned[b.id]){S.owned[b.id]={lvl:1,stars:1};tag='MỚI!';}
+      else if(S.owned[b.id].stars<5){S.owned[b.id].stars++;tag='+1 sao';}
+      else {S.gold+=500;tag='+500 vàng';}
+      lastPulls.push({id:b.id,tag});
+    }
+    save();render();
+  };
+  $('#p1').onclick=()=>pull(1); $('#p10').onclick=()=>pull(10);
+}
+
+let confirmReset=false;
+function vMod(){
+  const m=S.mods;
+  const sw=(k,t,d)=>`<div class="mod"><div><div class="t">${t}</div><div class="sub">${d}</div></div><button class="sw ${m[k]?'on':''}" data-k="${k}" aria-pressed="${!!m[k]}" aria-label="${t}"></button></div>`;
+  const seg=(k,t,d,opts)=>`<div class="mod"><div><div class="t">${t}</div><div class="sub">${d}</div></div><div class="seg">${opts.map(v=>`<button data-seg="${k}" data-v="${v}" class="${m[k]===v?'on':''}">×${v}</button>`).join('')}</div></div>`;
+  $('#view').innerHTML=`
+  <h2>Menu Mod</h2>
+  <p class="sub">Bật tắt tùy ý. Mọi thay đổi chỉ nằm trong trình duyệt của bạn.</p>
+  ${seg('dmg','Sát thương','Nhân sát thương của đội bạn',[1,2,5,10,100])}
+  ${sw('god','Bất tử','Đội bạn không mất máu')}
+  ${sw('fullEn','Nộ luôn đầy','Thú của bạn tung chiêu mỗi lượt')}
+  ${seg('goldMul','Vàng thưởng','Nhân vàng nhận sau mỗi ải',[1,5,10,50])}
+  ${sw('infGems','Kim cương vô hạn','Triệu hồi không tốn kim cương')}
+  ${sw('ssr','Tăng tỉ lệ SSR','SSR 25%, SR 15%')}
+  ${sw('freeLv','Lên cấp miễn phí','Không tốn vàng khi nâng cấp')}
+  <div class="mod"><div><div class="t">Mở khóa toàn bộ thú</div><div class="sub">Nhận tất cả ${B.length} thú ở 5 sao</div></div><button class="btn ghost" id="unlock">Mở khóa</button></div>
+  <div class="mod"><div><div class="t">Nhảy tới ải</div><div class="sub">Đang ở ải ${S.stage}</div></div><div class="row"><input type="number" id="jump" min="1" max="999" value="${S.stage}"><button class="btn ghost" id="go">Đi</button></div></div>
+  <div class="mod"><div><div class="t">Nhận nhanh tài nguyên</div><div class="sub">+100.000 vàng, +10.000 kim cương</div></div><button class="btn ghost" id="rich">Nhận</button></div>
+  ${confirmReset?`<div class="confirm"><b>Xóa toàn bộ dữ liệu chơi?</b><span class="sub">Thú, cấp và ải sẽ về như lúc mới bắt đầu.</span><div class="row"><button class="btn red" id="rsYes">Xóa dữ liệu</button><button class="btn ghost" id="rsNo">Giữ lại</button></div></div>`
+  :`<div class="mod"><div><div class="t">Chơi lại từ đầu</div><div class="sub">Xóa dữ liệu đã lưu</div></div><button class="btn red" id="reset">Chơi lại</button></div>`}`;
+  document.querySelectorAll('.sw').forEach(b=>b.onclick=()=>{m[b.dataset.k]=!m[b.dataset.k];save();render();});
+  document.querySelectorAll('[data-seg]').forEach(b=>b.onclick=()=>{m[b.dataset.seg]=+b.dataset.v;save();render();});
+  $('#unlock').onclick=()=>{B.forEach(b=>{S.owned[b.id]=S.owned[b.id]||{lvl:1,stars:1};S.owned[b.id].stars=5;});save();render();};
+  $('#go').onclick=()=>{const v=Math.max(1,Math.min(999,parseInt($('#jump').value)||1));S.stage=v;save();render();};
+  $('#rich').onclick=()=>{S.gold+=100000;S.gems+=10000;save();render();};
+  if(confirmReset){$('#rsYes').onclick=()=>{const t=S.tab;S=fresh();S.tab=t;confirmReset=false;lastPulls=[];save();render();};$('#rsNo').onclick=()=>{confirmReset=false;render();};}
+  else $('#reset').onclick=()=>{confirmReset=true;render();};
+}
+
+// ---------- battle ----------
+let BT=null;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms/(S.mods.speed||1)));
+function mkUnit(b,lvl,stars,side,i,boss){
+  const st=stats(b,lvl,stars); if(boss){st.hp*=3;st.atk=Math.round(st.atk*1.3);st.def=Math.round(st.def*1.2);}
+  return {b,lvl,side,i,boss,maxHp:st.hp,hp:st.hp,atk:st.atk,def:st.def,spd:st.spd,en:side==='p'?20:0,s:{}};
+}
+function startBattle(stage){
+  const p=S.team.map((id,i)=>mkUnit(BY[id],S.owned[id].lvl,S.owned[id].stars,'p',i));
+  const e=stageFoes(stage).map((f,i)=>mkUnit(BY[f.id],f.lvl,f.stars,'e',i,f.boss));
+  BT={stage,p,e,queue:[],over:false,quit:false,round:0};
+  const card=u=>`<div class="unit ${u.boss?'boss':''}" id="u-${u.side}${u.i}">${ava(u.b)}<span class="nm">${u.boss?'Trùm ':''}${u.b.n}</span><div class="hp"><i></i></div><div class="en"><i></i></div><span class="hpn"></span><div class="fx"></div></div>`;
+  $('#arenaRoot').innerHTML=`<div class="arena" id="arena">
+    <div class="bar"><h3>Ải ${stage}</h3><span class="sub" id="round">Hiệp 1</span></div>
+    <div class="side" style="margin-top:12px">${e.map(card).join('')}</div>
+    <div class="mid"><div class="vs">— GIAO TRANH —</div><div class="log" id="log">Trận đấu bắt đầu!</div></div>
+    <div class="side">${p.map(card).join('')}</div>
+    <div class="ctrl">
+      <button class="btn ghost" id="auto">${S.mods.auto?'Tự đánh: Bật':'Tự đánh: Tắt'}</button>
+      <button class="btn ghost" id="spd">Tốc độ ×${S.mods.speed}</button>
+      <button class="btn red" id="quit">Bỏ chạy</button>
+    </div></div>`;
+  [...p,...e].forEach(drawU);
+  p.forEach(u=>{$('#u-p'+u.i).onclick=()=>{ if(u.hp>0&&u.en>=100&&!BT.queue.includes(u)&&!BT.over){BT.queue.push(u);log(`<b>${u.b.n}</b> chuẩn bị tung chiêu!`);} };});
+  $('#auto').onclick=e=>{S.mods.auto=!S.mods.auto;save();e.target.textContent=S.mods.auto?'Tự đánh: Bật':'Tự đánh: Tắt';};
+  $('#spd').onclick=e=>{S.mods.speed={1:2,2:4,4:1}[S.mods.speed]||1;save();e.target.textContent='Tốc độ ×'+S.mods.speed;};
+  $('#quit').onclick=()=>{BT.quit=true;BT.over=true;$('#arenaRoot').innerHTML='';render();};
+  loop();
+}
+function el(u){return document.getElementById('u-'+u.side+u.i);}
+function drawU(u){
+  const n=el(u); if(!n)return;
+  if(u.side==='p'&&S.mods.fullEn&&u.hp>0)u.en=100;
+  const pct=Math.max(0,u.hp/u.maxHp*100);
+  n.querySelector('.hp i').style.width=pct+'%'; n.querySelector('.hp').classList.toggle('low',pct<30);
+  n.querySelector('.en i').style.width=Math.min(100,u.en)+'%';
+  n.querySelector('.hpn').textContent=fmt(Math.max(0,u.hp))+' / '+fmt(u.maxHp);
+  n.classList.toggle('dead',u.hp<=0);
+  n.classList.toggle('ready',u.side==='p'&&u.hp>0&&u.en>=100&&!S.mods.auto);
+  const fx=[];const s=u.s;
+  if(s.burn)fx.push('<span style="color:#ff7a45">CHÁY</span>'); if(s.poison)fx.push('<span style="color:#7be08a">ĐỘC</span>');
+  if(s.stun)fx.push('<span style="color:#e8c93a">CHOÁNG</span>'); if(s.defUp)fx.push('<span style="color:#7ee0ff">THỦ↑</span>'); if(s.atkUp)fx.push('<span style="color:#ff9bd0">CÔNG↑</span>');
+  n.querySelector('.fx').innerHTML=fx.join('');
+}
+function float(u,txt,cls){const n=el(u);if(!n)return;const f=document.createElement('span');f.className='float '+cls;f.textContent=txt;n.appendChild(f);setTimeout(()=>f.remove(),900);}
+function log(h){const l=$('#log');if(l)l.innerHTML=h;}
+const alive=a=>a.filter(u=>u.hp>0);
+const foesOf=u=>u.side==='p'?BT.e:BT.p, friendsOf=u=>u.side==='p'?BT.p:BT.e;
+
+function hit(a,t,mult){
+  let atk=a.atk*(a.s.atkUp?1.4:1), def=t.def*(t.s.defUp?1.6:1);
+  let d=atk*mult*(100/(100+def))*elemMult(a.b.el,t.b.el)*(0.9+Math.random()*0.2);
+  const crit=Math.random()<0.12; if(crit)d*=1.6;
+  if(a.side==='p')d*=S.mods.dmg;
+  if(t.side==='p'&&S.mods.god)d=0;
+  d=Math.max(t.side==='p'&&S.mods.god?0:1,Math.round(d));
+  t.hp-=d; t.en=Math.min(100,t.en+10);
+  const em=elemMult(a.b.el,t.b.el);
+  float(t,(crit?'Bạo! ':'')+'-'+fmt(d),crit?'crit':em>1?'weak':'dmg');
+  const n=el(t); if(n){n.classList.remove('hit');void n.offsetWidth;n.classList.add('hit');}
+  if(t.hp<=0){t.hp=0;t.s={};}
+  drawU(t); return d;
+}
+function heal(t,amt){if(t.hp<=0)return;amt=Math.round(amt);t.hp=Math.min(t.maxHp,t.hp+amt);float(t,'+'+fmt(amt),'heal');drawU(t);}
+
+function castSkill(u){
+  const k=u.b.sk, foes=alive(foesOf(u)), friends=alive(friendsOf(u));
+  u.en=0; log(`<b>${u.side==='e'?'Địch · ':''}${u.b.n}</b> tung chiêu <b>${k.n}</b>!`);
+  const debuff=t=>{ if(t.hp<=0)return; if(k.burn)t.s.burn=k.burn; if(k.poison)t.s.poison=k.poison; if(k.stun&&Math.random()<k.stun)t.s.stun=1; drawU(t); };
+  if(k.t==='single'){ const t=k.low?foes.reduce((a,b)=>a.hp<b.hp?a:b):foes[Math.floor(Math.random()*foes.length)]; hit(u,t,k.m); debuff(t); if(k.selfDef){u.s.defUp=k.selfDef;} }
+  else if(k.t==='aoe'){ foes.forEach(t=>{hit(u,t,k.m);debuff(t);}); if(k.heal)friends.forEach(f=>heal(f,f.maxHp*k.heal)); }
+  else if(k.t==='healAll'){ friends.forEach(f=>heal(f,f.maxHp*k.m)); }
+  else if(k.t==='shield'){ friends.forEach(f=>{f.s.defUp=2;heal(f,f.maxHp*k.m);}); }
+  if(k.atkUp)friends.forEach(f=>{f.s.atkUp=k.atkUp;});
+  friends.forEach(drawU); drawU(u);
+}
+function basic(u){
+  const foes=alive(foesOf(u)); if(!foes.length)return;
+  const t=foes[Math.floor(Math.random()*foes.length)];
+  const d=hit(u,t,1); u.en=Math.min(100,u.en+25);
+  log(`<b>${u.side==='e'?'Địch · ':''}${u.b.n}</b> tấn công <b>${t.b.n}</b> (${fmt(d)})`);
+  drawU(u);
+}
+async function act(u){
+  if(u.hp<=0||BT.over)return;
+  const n=el(u); n&&n.classList.add('act');
+  // damage over time
+  for(const [k,p] of [['burn',.06],['poison',.05]]) if(u.s[k]){ let d=Math.round(u.maxHp*p); if(u.side==='p'&&S.mods.god)d=0; u.hp-=d; float(u,'-'+fmt(d),'weak'); if(u.hp<=0){u.hp=0;u.s={};} drawU(u); }
+  if(u.hp>0){
+    if(u.s.stun){ log(`<b>${u.b.n}</b> bị choáng, mất lượt.`); u.s.stun=0; }
+    else if(u.en>=100&&(u.side==='e'||S.mods.auto)) castSkill(u);
+    else basic(u);
+  }
+  for(const k of ['burn','poison','defUp','atkUp']) if(u.s[k]) u.s[k]--;
+  drawU(u);
+  await sleep(650);
+  n&&n.classList.remove('act');
+}
+async function loop(){
+  const me=BT;
+  while(!me.over){
+    me.round++; const r=$('#round'); if(r)r.textContent='Hiệp '+me.round;
+    const order=alive([...me.p,...me.e]).sort((a,b)=>b.spd*(0.95+Math.random()*.1)-a.spd*(0.95+Math.random()*.1));
+    for(const u of order){
+      while(me.queue.length&&!me.over){ const q=me.queue.shift(); if(q.hp>0&&q.en>=100){ el(q)?.classList.add('act'); castSkill(q); await sleep(650); el(q)?.classList.remove('act'); check(me);} }
+      if(me.over)break;
+      await act(u); check(me);
+    }
+    if(me.round>=60&&!me.over){ me.over=true; finish(me,false); }
+  }
+}
+function check(me){
+  if(me.over)return;
+  if(!alive(me.e).length){me.over=true;finish(me,true);}
+  else if(!alive(me.p).length){me.over=true;finish(me,false);}
+}
+function finish(me,win){
+  if(me.quit)return;
+  let body;
+  if(win){
+    const rw=stageReward(me.stage), g=rw.gold*S.mods.goldMul;
+    S.gold+=g; S.gems+=rw.gems; if(me.stage===S.stage)S.stage++; save();
+    body=`<h2 style="color:var(--gold)">Chiến thắng!</h2><div>+${fmt(g)} vàng · +${rw.gems} kim cương</div><div class="row" style="justify-content:center"><button class="btn" id="next">Ải tiếp theo</button><button class="btn ghost" id="back">Về sảnh</button></div>`;
+  } else {
+    body=`<h2 style="color:var(--bad)">Thất bại</h2><div class="sub">Hãy nâng cấp thú, đổi đội hình theo hệ khắc chế, hoặc bật mod.</div><div class="row" style="justify-content:center"><button class="btn" id="retry">Đánh lại</button><button class="btn ghost" id="back">Về sảnh</button></div>`;
+  }
+  const a=$('#arena'); if(!a)return;
+  const d=document.createElement('div'); d.className='result'; d.innerHTML=`<div class="box">${body}</div>`; a.appendChild(d);
+  const close=()=>{$('#arenaRoot').innerHTML='';render();};
+  $('#back').onclick=close;
+  if(win)$('#next').onclick=()=>{$('#arenaRoot').innerHTML='';render();startBattle(S.stage);};
+  else $('#retry').onclick=()=>{$('#arenaRoot').innerHTML='';startBattle(me.stage);};
+}
+
+// ---------- boot ----------
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{S.tab=b.dataset.t;confirmReset=false;save();render();});
+const start=d=>{load(d);render();};
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+})();
+</script>
+
+</body>
+</html>
